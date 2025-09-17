@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Stores Manager — Local Demo</title>
+  <style>
+    :root{
+      --bg:#f6f8fb; --card:#ffffff; --muted:#6b7280; --accent:#2563eb;
+      --success:#16a34a; --danger:#dc2626; --glass: rgba(255,255,255,0.6);
+      --radius:12px; --max-width:1100px;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0; background:linear-gradient(180deg,#eef2ff 0%,var(--bg) 100%);
+      color:#0f172a; display:flex; align-items:center; justify-content:center;
+      padding:28px;
+    }
+    .app{
+      width:100%; max-width:var(--max-width); background:var(--card);
+      border-radius:18px; box-shadow:0 8px 30px rgba(2,6,23,0.08);
+      padding:20px; box-sizing:border-box;
+    }
+    header{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+    h1{font-size:20px; margin:0;}
+    .sub{color:var(--muted); font-size:13px;}
+    .layout{display:grid; grid-template-columns:360px 1fr; gap:18px; margin-top:18px;}
+    @media (max-width:900px){ .layout{grid-template-columns:1fr;} .left{order:2} .right{order:1} }
+    /* Left panel (form + quick actions) */
+    .card{background:linear-gradient(180deg,var(--glass),#fff); padding:14px; border-radius:12px;}
+    label{display:block; font-size:13px; color:#111827; margin-top:10px; margin-bottom:6px;}
+    input[type=text], input[type=number], select, textarea{
+      width:100%; padding:10px; border-radius:8px; border:1px solid #e6edf3; box-sizing:border-box;
+      font-size:14px; background:#fff;
+    }
+    .row{display:flex; gap:8px;}
+    .btn{
+      display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:10px;
+      border:0; cursor:pointer; font-weight:600;
+    }
+    .btn-primary{background:var(--accent); color:#fff;}
+    .btn-ghost{background:transparent; color:var(--accent); border:1px solid rgba(37,99,235,0.12);}
+    .btn-danger{background:var(--danger); color:#fff;}
+    .muted{color:var(--muted); font-size:13px;}
+    .actions{display:flex; gap:8px; margin-top:12px;}
+    hr{border:none; border-top:1px solid #f1f3f8; margin:14px 0;}
+    /* Right: product list */
+    .controls{display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;}
+    .search{flex:1; min-width:160px;}
+    .select{width:170px;}
+    .table{width:100%; border-collapse:collapse; background:transparent;}
+    .table th, .table td{padding:10px 8px; text-align:left; font-size:14px;}
+    .table thead th{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px;}
+    .product-row{background:linear-gradient(180deg,#ffffff,#fcfeff); border-radius:10px; margin-bottom:8px; display:grid; grid-template-columns:1fr auto; align-items:center; padding:10px;}
+    .prod-info{display:flex; gap:12px; align-items:center;}
+    .avatar{width:46px; height:46px; border-radius:8px; background:linear-gradient(135deg,#eef2ff,#fff); display:flex; align-items:center; justify-content:center; font-weight:700; color:#0b3a7a;}
+    .sku{font-size:12px; color:var(--muted);}
+    .qty{font-weight:700; margin-right:6px;}
+    .small{font-size:13px; color:var(--muted);}
+    .icon-btn{border:1px solid #eef2f8; padding:6px; border-radius:8px; background:#fff; cursor:pointer;}
+    .empty{padding:30px; text-align:center; color:var(--muted);}
+    .footer{display:flex; gap:8px; justify-content:flex-end; margin-top:12px;}
+    /* badges */
+    .badge{display:inline-block; padding:6px 8px; border-radius:999px; font-size:12px; background:#eef2f8; color:#064e3b;}
+    .low{background:#fff7ed; color:#92400e;}
+    /* responsive tweaks */
+    @media (max-width:600px){ .avatar{width:40px;height:40px} }
+  </style>
+</head>
+<body>
+  <main class="app" role="main" aria-labelledby="title">
+    <header>
+      <div>
+        <h1 id="title">Stores Manager</h1>
+        <div class="sub">Local demo — data is stored in your browser (localStorage)</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="exportCsv" class="btn btn-ghost" title="Export CSV">Export CSV</button>
+        <button id="clearAll" class="btn" style="background:#f8fafc;border:1px solid #f1f5f9">Clear data</button>
+      </div>
+    </header>
+
+    <section class="layout" aria-label="Main layout">
+      <!-- LEFT: form & quick actions -->
+      <aside class="left card">
+        <strong>Add / Edit product</strong>
+        <form id="productForm" autocomplete="off" style="margin-top:8px">
+          <input type="hidden" id="productId" />
+          <label for="name">Product name</label>
+          <input id="name" type="text" placeholder="e.g., Cotton Kurta" required />
+
+          <label for="sku">SKU / Code</label>
+          <input id="sku" type="text" placeholder="unique code (e.g., KR-001)" required />
+
+          <div class="row" style="margin-top:6px">
+            <div style="flex:1">
+              <label for="quantity">Quantity</label>
+              <input id="quantity" type="number" min="0" value="1" />
+            </div>
+            <div style="width:140px">
+              <label for="price">Price (₹)</label>
+              <input id="price" type="number" min="0" step="0.01" value="0.00" />
+            </div>
+          </div>
+
+          <label for="note">Note (optional)</label>
+          <textarea id="note" rows="2" placeholder="Small description or location"></textarea>
+
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Save product</button>
+            <button type="button" id="resetForm" class="btn">Reset</button>
+            <button type="button" id="addSample" class="btn btn-ghost">Add sample</button>
+          </div>
+        </form>
+
+        <hr />
+
+        <strong>Quick actions</strong>
+        <div style="margin-top:10px" class="muted">
+          Use quick buttons to adjust quantities or mark items as sold.
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button id="restockAll" class="btn">Restock +5</button>
+          <button id="markZero" class="btn">Mark all zero</button>
+        </div>
+
+      </aside>
+
+      <!-- RIGHT: list, search, filters -->
+      <section class="right card">
+        <div class="controls">
+          <input id="search" class="search" placeholder="Search by name or SKU" />
+          <select id="sortBy" class="select">
+            <option value="createdDesc">Newest</option>
+            <option value="nameAsc">Name A → Z</option>
+            <option value="nameDesc">Name Z → A</option>
+            <option value="qtyAsc">Qty low → high</option>
+            <option value="qtyDesc">Qty high → low</option>
+            <option value="priceDesc">Price high → low</option>
+            <option value="priceAsc">Price low → high</option>
+          </select>
+          <div style="margin-left:auto" class="small muted" id="countText">0 products</div>
+        </div>
+
+        <div id="listContainer" aria-live="polite">
+          <!-- product rows will be injected here -->
+        </div>
+
+        <div class="footer">
+          <div class="muted small" id="storageInfo"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    // --- Utilities
+    const $ = sel => document.querySelector(sel);
+    const uid = () => 'p_' + Math.random().toString(36).slice(2,9);
+    const storageKey = 'stores_manager_products_v1';
+
+    function readStorage(){
+      try{
+        const raw = localStorage.getItem(storageKey);
+        return raw ? JSON.parse(raw) : [];
+      }catch(e){ console.error(e); return []; }
+    }
+    function writeStorage(arr){
+      localStorage.setItem(storageKey, JSON.stringify(arr));
+      updateStorageInfo();
+    }
+    function updateStorageInfo(){
+      const used = new Blob([localStorage.getItem(storageKey) || '']).size;
+      $('#storageInfo').textContent = ${readStorage().length} products • ${used} bytes;
+    }
+
+    // --- App state
+    let products = readStorage();
+
+    // --- DOM refs
+    const form = $('#productForm');
+    const inputs = {
+      id: $('#productId'), name: $('#name'), sku: $('#sku'),
+      qty: $('#quantity'), price: $('#price'), note: $('#note')
+    };
+    const listContainer = $('#listContainer');
+    const searchEl = $('#search');
+    const sortEl = $('#sortBy');
+    const countText = $('#countText');
+
+    // --- Render
+    function renderList(){
+      const q = searchEl.value.trim().toLowerCase();
+      const sortMode = sortEl.value;
+      let filtered = products.filter(p => {
+        if(!q) return true;
+        return p.name.toLowerCase().includes(q) || (p.sku||'').toLowerCase().includes(q);
+      });
+
+      // sorting
+      const sorters = {
+        createdDesc: (a,b)=> b.created - a.created,
+        nameAsc: (a,b)=> a.name.localeCompare(b.name),
+        nameDesc: (a,b)=> b.name.localeCompare(a.name),
+        qtyAsc: (a,b)=> a.quantity - b.quantity,
+        qtyDesc: (a,b)=> b.quantity - a.quantity,
+        priceDesc: (a,b)=> b.price - a.price,
+        priceAsc: (a,b)=> a.price - b.price
+      };
+      filtered.sort(sorters[sortMode] || sorters.createdDesc);
+
+      listContainer.innerHTML = '';
+      if(filtered.length === 0){
+        listContainer.innerHTML = '<div class="empty">No products found — add one from the left.</div>';
+      } else {
+        filtered.forEach(p => {
+          const row = document.createElement('div');
+          row.className = 'product-row';
+          row.innerHTML = `
+            <div class="prod-info">
+              <div class="avatar">${(p.name||'').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase()}</div>
+              <div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <div style="font-weight:700">${escapeHtml(p.name)}</div>
+                  <div class="sku">${escapeHtml(p.sku || '')}</div>
+                  ${p.quantity <= 2 ? '<span class="badge low">Low</span>' : ''}
+                </div>
+                <div class="small">${escapeHtml(p.note || '')}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div style="text-align:right; margin-right:8px">
+                <div class="small">₹ ${Number(p.price).toFixed(2)}</div>
+                <div class="small"><span class="qty">${p.quantity}</span> pcs</div>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <button class="icon-btn" data-action="inc" data-id="${p.id}" aria-label="Increase">＋</button>
+                <button class="icon-btn" data-action="dec" data-id="${p.id}" aria-label="Decrease">−</button>
+                <button class="icon-btn" data-action="edit" data-id="${p.id}" aria-label="Edit">✎</button>
+                <button class="icon-btn" data-action="del"  data-id="${p.id}" aria-label="Delete">🗑</button>
+              </div>
+            </div>
+          `;
+          listContainer.appendChild(row);
+        });
+      }
+      countText.textContent = ${filtered.length} product${filtered.length!==1?'s':''};
+    }
+
+    // --- Escape helper
+    function escapeHtml(text){
+      if(!text) return '';
+      return text.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+    }
+
+    // --- Form handlers
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const id = inputs.id.value || uid();
+      const name = inputs.name.value.trim();
+      const sku = inputs.sku.value.trim();
+      const quantity = Math.max(0, Math.floor(Number(inputs.qty.value) || 0));
+      const price = Math.max(0, Number(inputs.price.value) || 0);
+      const note = inputs.note.value.trim();
+
+      if(!name || !sku){
+        alert('Please enter product name and SKU.');
+        return;
+      }
+
+      // upsert
+      const idx = products.findIndex(p => p.id === id);
+      const now = Date.now();
+      const item = { id, name, sku, quantity, price, note, created: now, updated: now };
+
+      if(idx >= 0){
+        products[idx] = Object.assign(products[idx], item);
+      } else {
+        products.push(item);
+      }
+      writeStorage(products);
+      resetForm();
+      renderList();
+    });
+
+    $('#resetForm').addEventListener('click', resetForm);
+
+    function resetForm(){
+      inputs.id.value = '';
+      inputs.name.value = '';
+      inputs.sku.value = '';
+      inputs.qty.value = 1;
+      inputs.price.value = '0.00';
+      inputs.note.value = '';
+      $('#productForm').scrollIntoView({behavior:'smooth', block:'center'});
+    }
+
+    // --- List actions (event delegation)
+    listContainer.addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if(!btn) return;
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+      if(!action || !id) return;
+      const idx = products.findIndex(p => p.id === id);
+      if(idx < 0) return;
+
+      if(action === 'inc'){ products[idx].quantity = (products[idx].quantity || 0) + 1; products[idx].updated = Date.now(); }
+      if(action === 'dec'){ products[idx].quantity = Math.max(0, (products[idx].quantity || 0) - 1); products[idx].updated = Date.now(); }
+      if(action === 'del'){
+        if(!confirm('Delete this product?')) return;
+        products.splice(idx,1);
+      }
+      if(action === 'edit'){
+        const p = products[idx];
+        inputs.id.value = p.id;
+        inputs.name.value = p.name;
+        inputs.sku.value = p.sku;
+        inputs.qty.value = p.quantity;
+        inputs.price.value = p.price;
+        inputs.note.value = p.note;
+        window.scrollTo({top:0, behavior:'smooth'});
+      }
+      writeStorage(products);
+      renderList();
+    });
+
+    // --- quick actions
+    $('#addSample').addEventListener('click', () => {
+      const sample = [
+        { id: uid(), name: 'Cotton Kurta', sku:'KR-001', quantity:8, price:549, note:'Blue - M', created:Date.now(), updated:Date.now() },
+        { id: uid(), name: 'Denim Jeans', sku:'JN-112', quantity:4, price:1299, note:'32, Slim', created:Date.now(), updated:Date.now() },
+        { id: uid(), name: 'Silk Saree', sku:'SR-303', quantity:2, price:2599, note:'Red, Bridal', created:Date.now(), updated:Date.now() }
+      ];
+      products = products.concat(sample);
+      writeStorage(products);
+      renderList();
+    });
+
+    $('#restockAll').addEventListener('click', () => {
+      products = products.map(p => (p.quantity += 5, p.updated = Date.now(), p));
+      writeStorage(products);
+      renderList();
+    });
+
+    $('#markZero').addEventListener('click', () => {
+      if(!confirm('Set quantities of all products to zero?')) return;
+      products = products.map(p => (p.quantity = 0, p.updated = Date.now(), p));
+      writeStorage(products);
+      renderList();
+    });
+
+    $('#clearAll').addEventListener('click', () => {
+      if(!confirm('Clear all stored products? This cannot be undone.')) return;
+      products = [];
+      writeStorage(products);
+      renderList();
+    });
+
+    // --- search / sort handlers
+    [searchEl, sortEl].forEach(el => el.addEventListener('input', renderList));
+
+    // --- export CSV
+    $('#exportCsv').addEventListener('click', () => {
+      if(products.length === 0){ alert('No products to export.'); return; }
+      const headers = ['id','name','sku','quantity','price','note','created','updated'];
+      const rows = [headers.join(',')].concat(products.map(p => headers.map(h => {
+        const v = p[h] ?? '';
+        return "${String(v).replace(/"/g,'""')}";
+      }).join(',')));
+      const blob = new Blob([rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'products_export.csv'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Initialize
+    updateStorageInfo();
+    renderList();
+
+    // Accessibility: keyboard shortcut N to focus new product name
+    window.addEventListener('keydown', (e) => {
+      if(e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey){
+        e.preventDefault();
+        inputs.name.focus();
+      }
+    });
+  </script>
+</body>
+</html>
